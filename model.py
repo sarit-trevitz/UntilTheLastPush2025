@@ -3,9 +3,11 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 
-# import os
-# if os.path.exists("health_monitor.db"):
-#     os.remove("health_monitor.db")
+from datetime import datetime
+
+import os
+if os.path.exists("health_monitor.db"):
+    os.remove("health_monitor.db")
 
 
 # הגדרת בסיס
@@ -17,7 +19,6 @@ class User(Base):
     id = Column(String, primary_key=True)  # national_id
     first_name = Column(String)
     last_name = Column(String)
-
     sensor_data = relationship("SensorData", back_populates="user", cascade="all, delete-orphan")
     exceptions = relationship("ExceptionLog", back_populates="user", cascade="all, delete-orphan")
 
@@ -26,6 +27,7 @@ class SensorData(Base):
     __tablename__ = 'sensor_data'
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     heart_rate = Column(Integer)
     temperature = Column(Float)
     movement_level = Column(Float)
@@ -103,6 +105,8 @@ def get_all_sensor_data(user_id: str):
     return [
         {
             "id": d.id,
+            "user_id": d.user_id,
+            "timestamp": d.timestamp,
             "heart_rate": d.heart_rate,
             "temperature": d.temperature,
             "movement_level": d.movement_level,
