@@ -7,8 +7,12 @@ from fastapi.responses import JSONResponse
 
 from model import (
     add_user, get_user, delete_user,
-    add_sensor_data, get_all_sensor_data, delete_sensor_record
+    add_sensor_data, delete_sensor_record
     , get_latest_exception_timestamp, get_exceptions_from_date
+)
+
+from check import (
+    check_all_conditions
 )
 
 app = FastAPI()
@@ -23,10 +27,7 @@ class SensorDataCreate(BaseModel):
     heart_rate: int
     temperature: float
     movement_level: float
-    blood_oxygen: float
     sweat_level: float
-
-
 
 # ----------- USER ENDPOINTS ----------- #
 @app.post("/users")
@@ -57,16 +58,8 @@ def remove_user(user_id: str):
 def create_sensor_data(user_id: str, data: SensorDataCreate):
     result = add_sensor_data(user_id, data.model_dump())
     # Check exceptions for user id  check_for_user_id(user_id)
-    # exeptions = check_all_conditions(user_id,)
-    # if exeptions:
-        # Wrtie to db exception with the current timestamp
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
-
-@app.get("/users/{user_id}/metrics")
-def read_sensor_data(user_id: str):
-    result = get_all_sensor_data(user_id)
+    exeptions = check_all_conditions(user_id)
+     # Wrtie to db exception with the current timestamp
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result

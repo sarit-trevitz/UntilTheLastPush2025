@@ -98,10 +98,8 @@ def add_sensor_data(user_id: str, data: dict):
     session.commit()
     return {"message": "Sensor data added", "record_id": record.id}
 
-def get_all_sensor_data(user_id: str):
-    user = session.query(User).filter_by(id=user_id).first()
-    if not user:
-        return {"error": "User not found"}
+def get_sensor_data_from_date(start_date: str):
+    sensor_data = session.query(SensorData).filter(SensorData.timestamp >= start_date).all()
     return [
         {
             "id": d.id,
@@ -110,10 +108,11 @@ def get_all_sensor_data(user_id: str):
             "heart_rate": d.heart_rate,
             "temperature": d.temperature,
             "movement_level": d.movement_level,
-            "sweat_level": d.sweat_level,
+            "sweat_level": d.sweat_level
         }
-        for d in user.sensor_data
+        for d in sensor_data
     ]
+
 
 def delete_sensor_record(record_id: int):
     record = session.query(SensorData).filter_by(id=record_id).first()
