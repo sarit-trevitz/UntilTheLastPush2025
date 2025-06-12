@@ -1,275 +1,121 @@
-import sqlite3
+import random
 from datetime import datetime, timedelta
+from model import get_sensor_data
 
-def detect_heat_stroke_risk(db_path, measurement_id, timestamp_str):
+#פונקציית מעטפת לזיהוי עומס חום ומכת חום
+def analyze_heat_overload_from_db(user_id: str, timestamp_str: str):
     """
-    Detects early or immediate signs of heat stroke based on recent health measurements.
-
-    Parameters:
-    db_path (str): Path to the SQLite database file.
-    measurement_id (int): ID of the measurement from the 'user_measurements' table.
-    timestamp_str (str): Timestamp of the measurement in format 'YYYY-MM-DD HH:MM:SS'.
-
-    The function identifies the client_id for the given measurement_id,
-    fetches the user's measurements from the last 5 minutes,
-    and triggers an alert with the appropriate severity.
+    Loads 5 minutes of data from DB and analyzes for heat overload / heatstroke.
     """
-
-    def send_alert(message, client_id):
-        # Placeholder for actual alert logic (e.g., send push + SMS)
-        print(f"ALERT: {message} | User: {client_id}")
-
     try:
-        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+        ts = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
-        print("Invalid timestamp format. Use 'YYYY-MM-DD HH:MM:SS'")
+        print("❌ Invalid timestamp format. Use YYYY-MM-DD HH:MM:SS")
         return
 
-    time_limit = timestamp - timedelta(minutes=5)
+    from_ts = (ts - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")
+    to_ts = timestamp_str
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        SELECT client_id FROM user_measurements
-        WHERE measurement_id = ?
-    """, (measurement_id,))
-    result = cursor.fetchone()
-
-    if not result:
-        print("measurement_id not found in user_measurements table.")
-        conn.close()
+    rows = get_sensor_data(user_id, from_ts, to_ts)
+    if not rows or len(rows) < 120:
+        print("ℹ️ Not enough data for heat overload analysis (need at least 2–5 minutes)")
         return
 
-    client_id = result[0]
-
-    cursor.execute("""
-        SELECT m.heart_rate, m.body_temp, m.sweat_level
-        FROM user_measurements um
-        JOIN measurements m ON um.measurement_id = m.id
-        WHERE um.client_id = ?
-        AND m.timestamp BETWEEN ? AND ?
-        ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    if len(rows) < 2:
-        return  # Not enough data to evaluate trends
-
-    heart_rates = [r[0] for r in rows]
-    temps = [r[1] for r in rows]
-    sweats = [r[2] for r in rows]
-
-    risk_score = 0
-
-    # Critical signs
-    if any(temp >= 39.0 for temp in temps):
-        risk_score += 2
-
-    if sum(1 for hr in heart_rates if hr >= 130) >= 2:
-        risk_score += 1.5
-
-    if min(sweats) < 20 and any(temp >= 39.0 for temp in temps):
-        risk_score += 2
-
-    # Early warning signs
-    if any(37.5 <= temp < 39.0 for temp in temps):
-        risk_score += 1
-
-    if any(110 <= hr < 130 for hr in heart_rates):
-        risk_score += 1
-
-    if max(sweats) > 30 and sweats[-1] < 20:
-        risk_score += 1
-
-    # Decision based on score
-    if risk_score >= 4:
-        send_alert("Severe heat stroke risk", client_id)
-    elif risk_score >= 2:
-        send_alert("Early heat stroke warning", client_id)
+    analyze_heat_overload(rows)
 
 
-
-
-
-
-
-
-
-
-
-
-
-def detect_immediate_dehydration_risk_precise(db_path, measurement_id, timestamp_str):
+#זיהוי עומס חום ומכת חום
+def analyze_heat_overload(data_rows):
     """
-    Detects signs of dehydration risk for a specific user based on recent health measurements.
-    Sends an early warning or a severe alert based on weighted condition scoring.
-
-    Parameters:
-    db_path (str): Path to the SQLite database file.
-    measurement_id (int): ID of the measurement from the 'user_measurements' table.
-    timestamp_str (str): Timestamp of the measurement in format 'YYYY-MM-DD HH:MM:SS'.
+    Detects early and severe signs of heat overload or heatstroke based on trends over time.
+    Assumes 2-second sampling.
+    Each row: (timestamp, heart_rate, temperature, movement_level, sweat_level)
     """
+    alerts = []
 
-    def send_alert(problem_name, client_id):
-        # Placeholder function for sending alerts (can be replaced with real implementation).
-        print(f"ALERT: {problem_name} | User: {client_id}")
+    for i in range(150, len(data_rows)):  # at least 5 min
+        ts, hr, temp, move, sweat = data_rows[i]
 
-    try:
-        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        print("Invalid timestamp format. Use 'YYYY-MM-DD HH:MM:SS'")
-        return
+        win_1min = data_rows[i-29:i+1]
+        win_3min = data_rows[i-89:i+1]
+        win_5min = data_rows[i-149:i+1]
 
-    time_limit = timestamp - timedelta(minutes=5)
+        # 🔶 Approaching overload: temp 38.1–38.5 & HR 130–150 for >60s
+        if all(38.1 <= r[2] <= 38.5 and 130 <= r[1] <= 150 for r in win_1min):
+            alerts.append((ts, "heat_overload_warning", "orange", "Temp 38.1–38.5 + HR 130–150 for 60s – early sign of overload"))
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+        # 🔶 Approaching overload: sweat ≥600 & temp ↑ & HR ↑ over 3–5 min
+        temp_start = win_5min[0][2]
+        temp_now = temp
+        hr_start = win_5min[0][1]
+        hr_now = hr
+        sweat_avg = sum(r[4] for r in win_5min) / len(win_5min)
 
-    cursor.execute("""
-        SELECT client_id FROM user_measurements
-        WHERE measurement_id = ?
-    """, (measurement_id,))
-    result = cursor.fetchone()
+        if (
+            sweat_avg * 1000 >= 600 and
+            temp_start <= 37.8 and temp_now >= 38.3 and
+            hr_now - hr_start >= 15
+        ):
+            alerts.append((ts, "heat_building_up", "orange", "Sweat ≥600 + temp rising + HR↑ ≥15 BPM over 3–5 min"))
 
-    if not result:
-        print("measurement_id not found in user_measurements table.")
-        conn.close()
-        return
+        # 🔴 Severe: temp ≥39.0 or (38.5–39.0 + HR ≥150 + no movement)
+        if temp >= 39.0:
+            alerts.append((ts, "heatstroke", "red", "Temp ≥39.0°C – heatstroke condition"))
+        elif 38.5 <= temp < 39.0 and hr >= 150 and all(r[3] <= 0.05 for r in win_1min):
+            alerts.append((ts, "heatstroke", "red", "Temp 38.5–39.0 + HR ≥150 + stillness – possible collapse"))
 
-    client_id = result[0]
+        # 🔴 Severe: HR ≥140 for 60s + temp ≥39.0 + sweat ≥800 + no movement
+        if (
+            all(r[1] >= 140 for r in win_1min) and
+            temp >= 39.0 and
+            sweat * 1000 >= 800 and
+            all(r[3] == 0 for r in win_1min)
+        ):
+            alerts.append((ts, "heatstroke_critical", "red", "HR ≥140 + temp ≥39.0 + sweat ≥800 + no movement – critical heatstroke"))
 
-    cursor.execute("""
-        SELECT m.heart_rate, m.body_temp, m.oxygen_level, m.sweat_level
-        FROM user_measurements um
-        JOIN measurements m ON um.measurement_id = m.id
-        WHERE um.client_id = ?
-        AND m.timestamp BETWEEN ? AND ?
-        ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    if len(rows) < 2:
-        return  # Not enough data to evaluate trends
-
-    heart_rates = [r[0] for r in rows]
-    temps = [r[1] for r in rows]
-    oxygens = [r[2] for r in rows]
-    sweats = [r[3] for r in rows]
-
-    risk_score = 0
-
-    # Condition 1: Heart rate increased by more than 10 BPM (low-medium weight)
-    if heart_rates[-1] - heart_rates[0] > 10:
-        risk_score += 1
-
-    # Condition 2: Temperature increased from ≤36.7 to >37.5 (medium-high weight)
-    if temps[0] <= 36.7 and max(temps) > 37.5:
-        risk_score += 1.5
-
-    # Condition 3: Sweat level dropped below 20 and kept dropping (high weight)
-    if min(sweats) < 20 and sweats[-1] < sweats[0]:
-        risk_score += 2
-
-    # Condition 4: Oxygen level dropped from >97 to <95 (low weight)
-    if oxygens[0] > 97 and min(oxygens) < 95:
-        risk_score += 1
-
-    # Trigger alerts based on severity
-    if risk_score >= 4:
-        send_alert("Severe dehydration risk", client_id)
-    elif risk_score >= 2:
-        send_alert("Early dehydration warning", client_id)
+    for ts, etype, level, details in alerts:
+        print(f"[{ts}] {level.upper()} – {details}")
 
 
+from datetime import datetime, timedelta
+import random
 
-
-def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
+def generate_fake_data(start_time: datetime, minutes: int = 6, interval_seconds: int = 2):
     """
-    Detects early or severe signs of hypothermia based on recent health measurements.
-
-    Parameters:
-    db_path (str): Path to the SQLite database file.
-    measurement_id (int): ID of the measurement from the 'user_measurements' table.
-    timestamp_str (str): Timestamp of the measurement in format 'YYYY-MM-DD HH:MM:SS'.
-
-    The function identifies the client_id for the given measurement_id,
-    fetches the user's measurements from the last 5 minutes,
-    and triggers an alert based on physiological signs of hypothermia.
+    Generates synthetic sensor data every X seconds for Y minutes.
+    Returns a list of tuples: (timestamp, heart_rate, temperature, movement_level, sweat_level)
     """
+    data = []
+    current_time = start_time
+    total_samples = (minutes * 60) // interval_seconds
 
-    def send_alert(message, client_id):
-        # Placeholder for actual alert logic (e.g., send push + SMS)
-        print(f"ALERT: {message} | User: {client_id}")
+    for _ in range(total_samples):
+        heart_rate = random.choice([85, 100, 120, 130, 140, 150, 160])
+        temperature = round(random.uniform(37.5, 39.2), 1)
+        movement_level = random.choice([0.0, 0.03, 0.1, 0.6])
+        sweat_level = round(random.uniform(0.4, 0.9), 2)
 
-    try:
-        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        print("Invalid timestamp format. Use 'YYYY-MM-DD HH:MM:SS'")
-        return
+        data.append((
+            current_time.strftime("%Y-%m-%d %H:%M:%S"),
+            heart_rate,
+            temperature,
+            movement_level,
+            sweat_level
+        ))
 
-    time_limit = timestamp - timedelta(minutes=5)
+        current_time += timedelta(seconds=interval_seconds)
 
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    return data
 
-    cursor.execute("""
-        SELECT client_id FROM user_measurements
-        WHERE measurement_id = ?
-    """, (measurement_id,))
-    result = cursor.fetchone()
+def main():
+    from datetime import datetime
+    start = datetime.now()
 
-    if not result:
-        print("measurement_id not found in user_measurements table.")
-        conn.close()
-        return
+    # יצירת נתונים פיקטיביים עם עומס חום לצורך בדיקה
+    fake_data = generate_fake_data(start, minutes=6, interval_seconds=2)
 
-    client_id = result[0]
+    # הרצת ניתוח עומס חום
+    analyze_heat_overload(fake_data)
 
-    cursor.execute("""
-        SELECT m.body_temp, m.motion_level, m.sweat_level
-        FROM user_measurements um
-        JOIN measurements m ON um.measurement_id = m.id
-        WHERE um.client_id = ?
-        AND m.timestamp BETWEEN ? AND ?
-        ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    if len(rows) < 2:
-        return  # Not enough data to evaluate trends
-
-    temps = [r[0] for r in rows]
-    motions = [r[1] for r in rows]   # Assume this is a numeric representation of tremors or acceleration
-    sweats = [r[2] for r in rows]
-
-    risk_score = 0
-
-    # Critical: temperature dropped below 35°C
-    if any(temp < 35.0 for temp in temps):
-        risk_score += 2
-
-    # Sustained motion indicating repeated shivering
-    tremor_count = sum(1 for m in motions if m > 1.5)  # You may adjust threshold based on sensor scale
-    if tremor_count >= 2:
-        risk_score += 1.5
-
-    # Low sweat level (optional support condition)
-    if max(sweats) < 20:
-        risk_score += 1
-
-    # Trigger alerts based on total score
-    if risk_score >= 4:
-        send_alert("Severe hypothermia risk", client_id)
-    elif risk_score >= 2:
-        send_alert("Early hypothermia warning", client_id)
-
-
-
-
+if __name__ == "__main__":
+    main()

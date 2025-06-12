@@ -52,11 +52,11 @@ class ExceptionLog(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "exception_type IN ('fall', 'heatstroke', 'coldshock', 'dehydration', 'pre_syncope', 'heart_attack', 'button_press')",
+            "exception_type IN ('fall', 'heatstroke', 'coldshock', 'dehydration', 'pre_syncope', 'heart_attack', 'anxiety_attack')",
             name='valid_exception_type'
         ),
         CheckConstraint(
-            "exception_level IN ('green', 'yellow', 'red')",
+            "exception_level IN ('orange', 'red')",
             name='valid_exception_level'
         ),
     )
@@ -113,8 +113,23 @@ def add_sensor_data(user_id: str, data: dict):
     session.commit()
     return {"message": "Sensor data added", "record_id": record.id}
 
-def get_sensor_data_from_date(start_date: str):
-    sensor_data = session.query(SensorData).filter(SensorData.timestamp >= start_date).all()
+def get_sensor_data(user_id: str, from_ts: str, to_ts: str):
+    rows = session.execute(
+        """
+        SELECT timestamp, heart_rate, temperature, movement_level, sweat_level
+        FROM sensor_data
+        WHERE user_id = :uid AND timestamp BETWEEN :start AND :end
+        ORDER BY timestamp ASC
+        """,
+        {"uid": user_id, "start": from_ts, "end": to_ts}
+    ).fetchall()
+    return rows
+
+
+def get_all_sensor_data(user_id: str):
+    user = session.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "User not found"}
     return [
         {
             "id": d.id,
@@ -184,48 +199,4 @@ def delete_exception(exception_id: int):
         session.commit()
         return {"message": "Exception deleted"}
     return {"error": "Exception not found"}
-
-
-
-def get_latest_exception_timestamp():
-    latest = session.query(ExceptionLog).order_by(ExceptionLog.timestamp.desc()).first()
-    if latest:
-        return latest.timestamp
-    return None
-
-
-# def get_exceptions_from_date(start_date: str):
-#     exceptions = session.query(ExceptionLog).filter(ExceptionLog.timestamp >= start_date).all()
-#     return [
-#         {
-#             "id": e.id,
-#             "user_id": e.user_id,
-#             "timestamp": e.timestamp,
-#             "exception_type": e.exception_type,
-#             "exception_level": e.exception_level,
-#             "details": e.details,
-#         }
-#         for e in exceptions
-#     ]
-
-def get_last_exception_from_date(start_date: str):
-    exception = (
-        session.query(ExceptionLog)
-        .filter(ExceptionLog.timestamp >= start_date)
-        .order_by(ExceptionLog.timestamp.desc())
-        .first()
-    )
-    
-    if exception is None:
-        return None  
-    
-    return {
-        "id": exception.id,
-        "user_id": exception.user_id,
-        "timestamp": exception.timestamp,
-        "exception_type": exception.exception_type,
-        "exception_level": exception.exception_level,
-        "details": exception.details,
-    }
-
 
