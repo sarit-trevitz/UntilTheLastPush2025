@@ -1,6 +1,12 @@
-from sqlalchemy import create_engine, Column, String, Integer, Float, ForeignKey
+from sqlalchemy import create_engine, Column, String, Integer, Float, ForeignKey, CheckConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from datetime import datetime
+
+# import os
+# if os.path.exists("health_monitor.db"):
+#     os.remove("health_monitor.db")
+
 
 # הגדרת בסיס
 Base = declarative_base()
@@ -13,6 +19,7 @@ class User(Base):
     last_name = Column(String)
 
     sensor_data = relationship("SensorData", back_populates="user", cascade="all, delete-orphan")
+    exceptions = relationship("ExceptionLog", back_populates="user", cascade="all, delete-orphan")
 
 # טבלת מדדים
 class SensorData(Base):
@@ -22,10 +29,33 @@ class SensorData(Base):
     heart_rate = Column(Integer)
     temperature = Column(Float)
     movement_level = Column(Float)
-    blood_oxygen = Column(Float)
     sweat_level = Column(Float)
 
     user = relationship("User", back_populates="sensor_data")
+
+# טבלת חריגות
+class ExceptionLog(Base):
+    __tablename__ = 'exception'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    timestamp = Column(String, default=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    details = Column(String, nullable=False)
+    user_id = Column(String, ForeignKey('users.id'), nullable=False)
+    exception_type = Column(String, nullable=False)
+    exception_level = Column(String, nullable=False)
+
+    user = relationship("User", back_populates="exceptions")
+
+    __table_args__ = (
+        CheckConstraint(
+            "exception_type IN ('fall', 'heatstroke', 'coldshock', 'dehydration', 'pre_syncope', 'heart_attack')",
+            name='valid_exception_type'
+        ),
+        CheckConstraint(
+            "exception_level IN ('green', 'orange', 'red')",
+            name='valid_exception_level'
+        ),
+    )
 
 # יצירת חיבור למסד הנתונים
 engine = create_engine('sqlite:///health_monitor.db')
@@ -76,7 +106,6 @@ def get_all_sensor_data(user_id: str):
             "heart_rate": d.heart_rate,
             "temperature": d.temperature,
             "movement_level": d.movement_level,
-            "blood_oxygen": d.blood_oxygen,
             "sweat_level": d.sweat_level,
         }
         for d in user.sensor_data
@@ -89,17 +118,3 @@ def delete_sensor_record(record_id: int):
         session.commit()
         return {"message": "Record deleted"}
     return {"error": "Record not found"}
-
-# ==================== דוגמה להפעלה מקומית ====================
-if __name__ == "__main__":
-    add_user("123456789", "Noa", "Nissim")
-
-    add_sensor_data("123456789", {
-        "heart_rate": 90,
-        "temperature": 37.3,
-        "movement_level": 0.2,
-        "blood_oxygen": 98.1,
-        "sweat_level": 0.5
-    })
-
-    print(get_all_sensor_data("123456789"))
