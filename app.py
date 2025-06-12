@@ -3,10 +3,12 @@ from pydantic import BaseModel
 from typing import List
 import random
 from datetime import datetime, timedelta
+from fastapi.responses import JSONResponse
 
 from model import (
     add_user, get_user, delete_user,
     add_sensor_data, get_all_sensor_data, delete_sensor_record
+    , get_latest_exception_timestamp, get_exceptions_from_date
 )
 
 app = FastAPI()
@@ -50,16 +52,17 @@ def remove_user(user_id: str):
 
 
 # ----------- SENSOR DATA ENDPOINTS ----------- #
-@app.post("/users/{user_id}/metrics")
-def create_sensor_data(user_id: str, data: SensorDataCreate):
-    result = add_sensor_data(user_id, data.model_dump())
-    # Check exceptions for user id  check_for_user_id(user_id)
-    exeptions = check_all_conditions(user_id,)
-    if exeptions:
-        # Wrtie to db exception with the current timestamp
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    return result
+# חיבור עם החומרה 
+# @app.post("/users/{user_id}/metrics")
+# def create_sensor_data(user_id: str, data: SensorDataCreate):
+#     result = add_sensor_data(user_id, data.model_dump())
+#     # Check exceptions for user id  check_for_user_id(user_id)
+#     exeptions = check_all_conditions(user_id,)
+#     if exeptions:
+#         # Wrtie to db exception with the current timestamp
+#     if "error" in result:
+#         raise HTTPException(status_code=404, detail=result["error"])
+#     return result
 
 @app.get("/users/{user_id}/metrics")
 def read_sensor_data(user_id: str):
@@ -67,6 +70,22 @@ def read_sensor_data(user_id: str):
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+@app.get("/test/{date_str}")
+def check_date(date_str: str):
+    # Define the reference date
+    reference_date = get_latest_exception_timestamp()
+    
+    try:
+        input_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return JSONResponse(status_code=400, content={"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"})
+    
+    if input_date < reference_date:
+        new = get_exceptions_from_date( date_str)
+        return {"res": "before", "new_data": new}
+    else:
+        return {"res": "after"}
 
 @app.delete("/metrics/{record_id}")
 def delete_metric_record(record_id: int):

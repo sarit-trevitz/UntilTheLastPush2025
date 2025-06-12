@@ -5,9 +5,9 @@ from datetime import datetime
 
 from datetime import datetime
 
-import os
-if os.path.exists("health_monitor.db"):
-    os.remove("health_monitor.db")
+# import os
+# if os.path.exists("health_monitor.db"):
+#     os.remove("health_monitor.db")
 
 
 # הגדרת בסיס
@@ -166,6 +166,29 @@ def delete_exception(exception_id: int):
         session.commit()
         return {"message": "Exception deleted"}
     return {"error": "Exception not found"}
+
+
+
+def get_latest_exception_timestamp():
+    latest = session.query(ExceptionLog).order_by(ExceptionLog.timestamp.desc()).first()
+    if latest:
+        return latest.timestamp
+    return None
+
+
+def get_exceptions_from_date(start_date: str):
+    exceptions = session.query(ExceptionLog).filter(ExceptionLog.timestamp >= start_date).all()
+    return [
+        {
+            "id": e.id,
+            "user_id": e.user_id,
+            "timestamp": e.timestamp,
+            "exception_type": e.exception_type,
+            "exception_level": e.exception_level,
+            "details": e.details,
+        }
+        for e in exceptions
+    ]
 
 
 
