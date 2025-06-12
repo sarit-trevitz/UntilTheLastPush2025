@@ -5,9 +5,9 @@ from datetime import datetime
 
 from datetime import datetime
 
-# import os
-# if os.path.exists("health_monitor.db"):
-#     os.remove("health_monitor.db")
+import os
+if os.path.exists("health_monitor.db"):
+    os.remove("health_monitor.db")
 
 
 # הגדרת בסיס
@@ -27,10 +27,12 @@ class SensorData(Base):
     __tablename__ = 'sensor_data'
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(String, ForeignKey('users.id'), nullable=False)
-    timestamp = Column(String, default=lambda: datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    timestamp = Column(String, default=datetime.now, nullable=False)
     heart_rate = Column(Integer)
     temperature = Column(Float)
-    movement_level = Column(Float)
+    movement_x = Column(Float)
+    movement_y = Column(Float)
+    movement_z = Column(Float)
     sweat_level = Column(Float)
 
     user = relationship("User", back_populates="sensor_data")
@@ -40,7 +42,7 @@ class ExceptionLog(Base):
     __tablename__ = 'exception'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(String, default=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    timestamp = Column(String, default=datetime.now, nullable=False)
     details = Column(String, nullable=False)
     user_id = Column(String, ForeignKey('users.id'), nullable=False)
     exception_type = Column(String, nullable=False)
@@ -50,11 +52,11 @@ class ExceptionLog(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "exception_type IN ('fall', 'heatstroke', 'coldshock', 'dehydration', 'pre_syncope', 'heart_attack')",
+            "exception_type IN ('fall', 'heatstroke', 'coldshock', 'dehydration', 'pre_syncope', 'heart_attack', 'button_press')",
             name='valid_exception_type'
         ),
         CheckConstraint(
-            "exception_level IN ('green', 'orange', 'red')",
+            "exception_level IN ('green', 'yellow', 'red')",
             name='valid_exception_level'
         ),
     )
@@ -80,6 +82,19 @@ def add_user(user_id: str, first_name: str, last_name: str):
 def get_user(user_id: str):
     return session.query(User).filter_by(id=user_id).first()
 
+def get_all_users():
+    users = session.query(User).all()
+    return [
+        {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "sensor_data_count": len(user.sensor_data),
+            "exceptions_count": len(user.exceptions),
+        }
+        for user in users
+    ]
+
 def delete_user(user_id: str):
     user = session.query(User).filter_by(id=user_id).first()
     if user:
@@ -91,7 +106,7 @@ def delete_user(user_id: str):
 # --- SensorData CRUD ---
 
 def add_sensor_data(user_id: str, data: dict):
-    if not session.query(User).filter_by(id=user_id).first():
+    if not session.query(User).filter_by(id=user_id.strip()).first():
         return {"error": "User does not exist"}
     record = SensorData(user_id=user_id, **data)
     session.add(record)
@@ -107,12 +122,16 @@ def get_sensor_data_from_date(start_date: str):
             "timestamp": d.timestamp,
             "heart_rate": d.heart_rate,
             "temperature": d.temperature,
-            "movement_level": d.movement_level,
+            "movement_x": d.movement_x,
+            "movement_y": d.movement_y,
+            "movement_z": d.movement_z,
             "sweat_level": d.sweat_level
         }
         for d in sensor_data
     ]
 
+    # Add a demo user with id = 1
+add_user(user_id="1", first_name="Demo", last_name="User")
 
 def delete_sensor_record(record_id: int):
     record = session.query(SensorData).filter_by(id=record_id).first()
@@ -175,19 +194,38 @@ def get_latest_exception_timestamp():
     return None
 
 
-def get_exceptions_from_date(start_date: str):
-    exceptions = session.query(ExceptionLog).filter(ExceptionLog.timestamp >= start_date).all()
-    return [
-        {
-            "id": e.id,
-            "user_id": e.user_id,
-            "timestamp": e.timestamp,
-            "exception_type": e.exception_type,
-            "exception_level": e.exception_level,
-            "details": e.details,
-        }
-        for e in exceptions
-    ]
+# def get_exceptions_from_date(start_date: str):
+#     exceptions = session.query(ExceptionLog).filter(ExceptionLog.timestamp >= start_date).all()
+#     return [
+#         {
+#             "id": e.id,
+#             "user_id": e.user_id,
+#             "timestamp": e.timestamp,
+#             "exception_type": e.exception_type,
+#             "exception_level": e.exception_level,
+#             "details": e.details,
+#         }
+#         for e in exceptions
+#     ]
 
+def get_last_exception_from_date(start_date: str):
+    exception = (
+        session.query(ExceptionLog)
+        .filter(ExceptionLog.timestamp >= start_date)
+        .order_by(ExceptionLog.timestamp.desc())
+        .first()
+    )
+    
+    if exception is None:
+        return None  
+    
+    return {
+        "id": exception.id,
+        "user_id": exception.user_id,
+        "timestamp": exception.timestamp,
+        "exception_type": exception.exception_type,
+        "exception_level": exception.exception_level,
+        "details": exception.details,
+    }
 
 
