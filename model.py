@@ -122,3 +122,50 @@ def delete_sensor_record(record_id: int):
         session.commit()
         return {"message": "Record deleted"}
     return {"error": "Record not found"}
+
+# --- Excepetion CRUD ---
+
+def add_exception(user_id: str, exception_type: str, exception_level: str, details: str, timestamp: str = None):
+    if not session.query(User).filter_by(id=user_id).first():
+        return {"error": "User does not exist"}
+
+    if timestamp is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    exception = ExceptionLog(
+        user_id=user_id,
+        exception_type=exception_type,
+        exception_level=exception_level,
+        details=details,
+        timestamp=timestamp
+    )
+    session.add(exception)
+    session.commit()
+    return {"message": "Exception added", "exception_id": exception.id}
+
+def get_all_exceptions():
+    exceptions = session.query(ExceptionLog).all()
+    return [
+        {
+            "id": e.id,
+            "user_id": e.user_id,
+            "timestamp": e.timestamp,
+            "exception_type": e.exception_type,
+            "exception_level": e.exception_level,
+            "details": e.details,
+        }
+        for e in exceptions
+    ]
+
+
+
+def delete_exception(exception_id: int):
+    exception = session.query(ExceptionLog).filter_by(id=exception_id).first()
+    if exception:
+        session.delete(exception)
+        session.commit()
+        return {"message": "Exception deleted"}
+    return {"error": "Exception not found"}
+
+
+
