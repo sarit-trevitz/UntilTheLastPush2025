@@ -129,6 +129,31 @@ def get_sensor_data_from_date(start_date: str):
         }
         for d in sensor_data
     ]
+    
+
+def get_sensor_data_between_dates(start_date: str, end_date: str):
+    sensor_data = (
+        session.query(SensorData)
+        .filter(SensorData.timestamp >= start_date)
+        .filter(SensorData.timestamp <= end_date)
+        .all()
+    )
+
+    return [
+        {
+            "id": d.id,
+            "user_id": d.user_id,
+            "timestamp": d.timestamp,
+            "heart_rate": d.heart_rate,
+            "temperature": d.temperature,
+            "movement_x": d.movement_x,
+            "movement_y": d.movement_y,
+            "movement_z": d.movement_z,
+            "sweat_level": d.sweat_level
+        }
+        for d in sensor_data
+    ]
+
 
     # Add a demo user with id = 1
 add_user(user_id="1", first_name="Demo", last_name="User")

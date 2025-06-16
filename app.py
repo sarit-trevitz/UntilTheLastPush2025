@@ -69,7 +69,7 @@ def remove_user(user_id: str):
 def create_sensor_data(user_id: str, data: SensorDataCreate):
     result = add_sensor_data(user_id, data.model_dump())
     # Check exceptions for user id  check_for_user_id(user_id)
-    #exeptions = check_all_conditions(user_id)
+    check_all_conditions(user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
      # Wrtie to db exception with the current timestamp
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
