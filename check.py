@@ -1,7 +1,6 @@
 from model import (
-    add_user, get_user, delete_user,
-    delete_sensor_record,
-    add_exception, get_all_exceptions, delete_exception, get_sensor_data_from_date, get_sensor_data_between_dates
+    add_exception,
+    get_sensor_data_between_dates,
 )
 
 from datetime import datetime, timedelta
@@ -17,17 +16,12 @@ def check_all_conditions(user_id: str, timestamp: str):
     pass
 
 
-
 def add_exception_helper(user_id: str, exception_type: str, exception_level: str, details: str):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        add_exception(user_id, exception_type, exception_level, details, timestamp)
-
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    add_exception(user_id, exception_type, exception_level, details, timestamp)
 
 
 # temperature_analysis.py\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-
-
-
 
 
 def analyze_high_temperature_short_window(user_id: str, timestamp_str: str):
@@ -52,17 +46,14 @@ def analyze_high_temperature_short_window(user_id: str, timestamp_str: str):
         return
 
     # Check if all temperature values are in the critical range
-    if all(34.0 <= float(r[2]) <= 45.0 for r in rows):
-        temp_values = [round(float(r[2]), 1) for r in rows]
+    if all(34.0 <= float(r["temperature"]) <= 45.0 for r in rows):
+        temp_values = [round(float(r["temperature"]), 1) for r in rows]
         avg_temp = sum(temp_values) / len(temp_values)
-        timestamp = rows[-1][0]  # timestamp of the most recent record
+        timestamp = rows[-1]["timestamp"]  # timestamp of the most recent record
 
         details = f"Abnormally consistent temperature ({avg_temp:.1f}°C) detected for 10 seconds"
 
-        add_exception_helper(user_id, "heatstroke", 'red', details)
-
-
-
+        add_exception_helper(user_id, "heatstroke", "red", details)
 
 
 #         # Call add_exception directly with valid values
@@ -75,21 +66,9 @@ def analyze_high_temperature_short_window(user_id: str, timestamp_str: str):
 #         )
 
 
-
-
-
-
-
 #         return {"alert": True, "type": "heatstroke", "temp": avg_temp}
 #     else:
 #         return {"alert": False}
-
-
-
-
-
-
-
 
 
 # def analyze_temperature_critical(data_rows, user_id):

@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 
+
 def detect_heat_stroke_risk(db_path, measurement_id, timestamp_str):
     """
     Detects early or immediate signs of heat stroke based on recent health measurements.
@@ -30,10 +31,13 @@ def detect_heat_stroke_risk(db_path, measurement_id, timestamp_str):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT client_id FROM user_measurements
         WHERE measurement_id = ?
-    """, (measurement_id,))
+    """,
+        (measurement_id,),
+    )
     result = cursor.fetchone()
 
     if not result:
@@ -43,14 +47,17 @@ def detect_heat_stroke_risk(db_path, measurement_id, timestamp_str):
 
     client_id = result[0]
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT m.heart_rate, m.body_temp, m.sweat_level
         FROM user_measurements um
         JOIN measurements m ON um.measurement_id = m.id
         WHERE um.client_id = ?
         AND m.timestamp BETWEEN ? AND ?
         ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
+    """,
+        (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -91,17 +98,6 @@ def detect_heat_stroke_risk(db_path, measurement_id, timestamp_str):
         send_alert("Early heat stroke warning", client_id)
 
 
-
-
-
-
-
-
-
-
-
-
-
 def detect_immediate_dehydration_risk_precise(db_path, measurement_id, timestamp_str):
     """
     Detects signs of dehydration risk for a specific user based on recent health measurements.
@@ -128,10 +124,13 @@ def detect_immediate_dehydration_risk_precise(db_path, measurement_id, timestamp
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT client_id FROM user_measurements
         WHERE measurement_id = ?
-    """, (measurement_id,))
+    """,
+        (measurement_id,),
+    )
     result = cursor.fetchone()
 
     if not result:
@@ -141,14 +140,17 @@ def detect_immediate_dehydration_risk_precise(db_path, measurement_id, timestamp
 
     client_id = result[0]
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT m.heart_rate, m.body_temp, m.oxygen_level, m.sweat_level
         FROM user_measurements um
         JOIN measurements m ON um.measurement_id = m.id
         WHERE um.client_id = ?
         AND m.timestamp BETWEEN ? AND ?
         ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
+    """,
+        (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -186,8 +188,6 @@ def detect_immediate_dehydration_risk_precise(db_path, measurement_id, timestamp
         send_alert("Early dehydration warning", client_id)
 
 
-
-
 def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
     """
     Detects early or severe signs of hypothermia based on recent health measurements.
@@ -217,10 +217,13 @@ def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT client_id FROM user_measurements
         WHERE measurement_id = ?
-    """, (measurement_id,))
+    """,
+        (measurement_id,),
+    )
     result = cursor.fetchone()
 
     if not result:
@@ -230,14 +233,17 @@ def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
 
     client_id = result[0]
 
-    cursor.execute("""
+    cursor.execute(
+        """
         SELECT m.body_temp, m.motion_level, m.sweat_level
         FROM user_measurements um
         JOIN measurements m ON um.measurement_id = m.id
         WHERE um.client_id = ?
         AND m.timestamp BETWEEN ? AND ?
         ORDER BY m.timestamp ASC
-    """, (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str))
+    """,
+        (client_id, time_limit.strftime("%Y-%m-%d %H:%M:%S"), timestamp_str),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -246,7 +252,7 @@ def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
         return  # Not enough data to evaluate trends
 
     temps = [r[0] for r in rows]
-    motions = [r[1] for r in rows]   # Assume this is a numeric representation of tremors or acceleration
+    motions = [r[1] for r in rows]  # Assume this is a numeric representation of tremors or acceleration
     sweats = [r[2] for r in rows]
 
     risk_score = 0
@@ -269,7 +275,3 @@ def detect_hypothermia_risk(db_path, measurement_id, timestamp_str):
         send_alert("Severe hypothermia risk", client_id)
     elif risk_score >= 2:
         send_alert("Early hypothermia warning", client_id)
-
-
-
-

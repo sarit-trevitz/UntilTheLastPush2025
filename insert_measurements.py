@@ -2,10 +2,10 @@ import sqlite3
 import pandas as pd
 
 # התחברות לקובץ SQLite
-conn = sqlite3.connect('C:/Users/TALYA/Desktop/sqlite/health_monitor.db')
+conn = sqlite3.connect("C:/Users/TALYA/Desktop/sqlite/health_monitor.db")
 
 # ת"ז של המשתמש שאת רוצה לשלוף
-client_id = '123456789'
+client_id = "123456789"
 
 # שאילתה שמחזירה את כל המדידות של המשתמש
 query = """
