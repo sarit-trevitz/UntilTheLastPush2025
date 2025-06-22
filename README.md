@@ -43,16 +43,15 @@ uv sync
 
 ## 3. Run the FastAPI Application
 
-#### Development Mode
 ```bash
-uv run fastapi dev app.py --port 8000
+uv run fastapi run app.py --port 3000
 ```
 
 ## 4. Access the API
 
-Open your browser and go to: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+Open your browser and go to: [http://127.0.0.1:3000](http://127.0.0.1:3000)
 
-The interactive API docs are available at: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+The interactive API docs are available at: [http://127.0.0.1:3000/docs](http://127.0.0.1:3000/docs)
 
 ---
 
