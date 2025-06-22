@@ -18,8 +18,18 @@ from model import (
 )
 
 from check import check_all_conditions
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
+
 
 NUM_OF_RECORDS = 1000  # מספר רשומות לדוגמה
 USER_ID = "1"  # מזהה משתמש
