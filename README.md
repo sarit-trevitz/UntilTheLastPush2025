@@ -44,7 +44,7 @@ uv sync
 ## 3. Run the FastAPI Application
 
 ```bash
-uv run fastapi run app.py --port 3000
+uv run fastapi run app.py --reload --port 3000
 ```
 
 ## 4. Access the API
