@@ -2,10 +2,12 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.db
+.vscode/
 
 # C extensions
 *.so
-
+*.health_monitor.db
 # Distribution / packaging
 .Python
 build/
