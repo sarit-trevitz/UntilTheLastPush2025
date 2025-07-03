@@ -35,24 +35,26 @@ def analyze_high_temperature_short_window(user_id: str, timestamp_str: str):
         print("❌ Invalid timestamp format. Use YYYY-MM-DD HH:MM:SS")
         return
 
-    from_ts = (ts - timedelta(seconds=10)).strftime("%Y-%m-%d %H:%M:%S")
+    from_ts = (ts - timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")
     to_ts = timestamp_str
 
-    # Get sensor data from the last 10 seconds
+    # Get sensor data from the last 1 minute
     rows = get_sensor_data_between_dates(from_ts, to_ts)
 
-    if not rows or len(rows) < 5:
-        print("ℹ Not enough data for 10-second temperature analysis")
+    if not rows or len(rows) < 3:
+        print(f"There are {len(rows) if rows else 0} records in the database")
+        print("ℹ Not enough data for 1-minute temperature analysis")
         return
 
     # Check if all temperature values are in the critical range
-    if all(34.0 <= float(r["temperature"]) <= 45.0 for r in rows):
+    print(f"Analyzing {len(rows)} records from {from_ts} to {to_ts}")
+    if all(34.0 <= float(r["temperature"]) for r in rows):
         temp_values = [round(float(r["temperature"]), 1) for r in rows]
         avg_temp = sum(temp_values) / len(temp_values)
         timestamp = rows[-1]["timestamp"]  # timestamp of the most recent record
 
-        details = f"Abnormally consistent temperature ({avg_temp:.1f}°C) detected for 10 seconds"
-
+        details = f"Abnormally consistent temperature ({avg_temp:.1f}°C) detected for 1 minute"
+        print(f"ALERT: {details} | User: {user_id} | Timestamp: {timestamp}")
         add_exception_helper(user_id, "heatstroke", "red", details)
 
 

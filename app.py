@@ -33,7 +33,7 @@ app.add_middleware(
 
 NUM_OF_RECORDS = 1000  # מספר רשומות לדוגמה
 USER_ID = "1"  # מזהה משתמש
-
+emergency: datetime | None = None
 
 # ----------- MODELS FOR REQUESTS ----------- #
 class UserCreate(BaseModel):
@@ -49,6 +49,37 @@ class SensorDataCreate(BaseModel):
     movement_y: float
     movement_z: float
     sweat_level: float
+
+
+def emergency_on() -> bool:
+    """
+    Check if the emergency button is pressed.
+    """
+    global emergency
+    if emergency is None:
+        return False
+    return emergency > datetime.now() - timedelta(seconds=10)
+
+
+
+@app.delete("/emergency")
+def emergency_status():
+    global emergency
+    emergency = None
+    return {"status": emergency_on()}
+
+
+@app.get("/emergency")
+def emergency_status():
+    global emergency
+    return {"status": emergency_on()}
+
+
+@app.post("/emergency")
+def emergency_status():
+    global emergency
+    emergency = datetime.now()
+    return {"status": emergency_on()}
 
 
 # ----------- USER ENDPOINTS ----------- #
@@ -93,24 +124,38 @@ def create_sensor_data(user_id: str, data: SensorDataCreate):
         raise HTTPException(status_code=404, detail=result["error"])
     return result
 
+@app.get("/buzz")
+def buzz():
+    reference_date = get_latest_exception_timestamp()
+    if reference_date is None:
+        return {"status": False}
+    return {"status": reference_date > datetime.now() - timedelta(seconds=5)}
+
 
 @app.get("/test")
-def check_date(date_str: str = Query(..., description="Date in format YYYY-MM-DDTHH:MM:SS")):
+def check_date(
+    date_str: str = Query(
+        default=None,
+        description="Date in format YYYY-MM-DDTHH:MM:SS (default: current time)"
+    )
+):
+    if not date_str:
+        date_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
     reference_date = get_latest_exception_timestamp()
     if reference_date is None:
         return JSONResponse(status_code=201, content={"error": "No exceptions found on the system"})
 
     try:
-        cleaned_date = date_str.replace("T", " ")  # תומך ב-T או רווח
-        input_date = datetime.strptime(cleaned_date, "%Y-%m-%d %H:%M:%S")
-        print(f"Input date: {input_date}, Reference date: {reference_date}")
+        if isinstance(date_str, str) and "T" in date_str:
+            date_str = date_str.replace("T", " ")  # תומך ב-T או רווח
+        input_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return JSONResponse(
-            status_code=400, content={"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS"}
+            status_code=400, content={"error": f"Got '{date_str}', Invalid date format. Use YYYY-MM-DD HH:MM:SS or YYYY-MM-DDTHH:MM:SS"}
         )
 
     if input_date < reference_date:
-        new = get_last_exception_from_date(cleaned_date)  # השתמש בתאריך שנוקה
+        new = get_last_exception_from_date(date_str)  # השתמש בתאריך שנוקה
         if new is not None and "user_id" in new:
             user_id = new["user_id"]
             new["user"] = get_user(user_id)
